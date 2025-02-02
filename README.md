@@ -24,6 +24,7 @@ The project files are organized as follows:
 Two primary datasets were used in this analysis:
  1. day.csv: Contains daily bike rental data, comprising 731 entries.
  2. hour.csv: Contains hourly bike rental data, comprising 17,379 entries.
+
 Key data points within these datasets include:
  * instant: Record index.
  * dteday: Date of the rental.

@@ -12,7 +12,7 @@ def create_daily_recap(df):
     return daily_recap
 
 def count_by_day(day):
-    day_count_2011 = day.query(str('dteday >= "2011-01-01" and dteday < "2012-12-31"'))
+    day_count_2011 = day.query('dteday >= "2011-01-01" and dteday < "2012-12-31"')
     return day_count_2011
 
 def total_registered(day):
@@ -27,7 +27,7 @@ def total_registered(day):
 
 def total_casual(day):
    cas =  day.groupby(by="dteday").agg({
-      "casual": ["sum"]
+      "casual": "sum"
     })
    cas = cas.reset_index()
    cas.rename(columns={
@@ -35,11 +35,11 @@ def total_casual(day):
     }, inplace=True)
    return cas
 
-def sum_order (hour):
+def sum_order(hour):
     sum_order_items_ = hour.groupby("hours").count_cr.sum().sort_values(ascending=False).reset_index()
     return sum_order_items_
 
-def macem_season (day): 
+def macem_season(day): 
     season_ = day.groupby(by="season").count_cr.sum().reset_index() 
     return season_
 
@@ -49,10 +49,10 @@ main_data_hour = pd.read_csv("dashboard/main_data_hour.csv")
 
 datetime_columns = ["dteday"]
 main_data_day.sort_values(by="dteday", inplace=True)
-main_data_day.reset_index(inplace=True)   
+main_data_day.reset_index(inplace=True, drop=True)   
 
 main_data_hour.sort_values(by="dteday", inplace=True)
-main_data_hour.reset_index(inplace=True)
+main_data_hour.reset_index(inplace=True, drop=True)
 
 for column in datetime_columns:
     main_data_day[column] = pd.to_datetime(main_data_day[column])
@@ -67,18 +67,21 @@ max_date_hour = main_data_hour["dteday"].max()
 with st.sidebar:
     # Menambahkan logo perusahaan
     st.image("dashboard/foto_sepeda.png")
-        # Mengambil start_date & end_date dari date_input
+    # Mengambil start_date & end_date dari date_input
     start_date, end_date = st.date_input(
         label='Rentang Waktu',
         min_value=min_date_days,
         max_value=max_date_days,
         value=[min_date_days, max_date_days])
   
-main_days = main_data_day[(main_data_day["dteday"] >= str(start_date)) & 
-                       (main_data_day["dteday"] <= str(end_date))]
+start_date = pd.to_datetime(start_date)
+end_date = pd.to_datetime(end_date)
 
-main_hour = main_data_hour[(main_data_hour["dteday"] >= str(start_date)) & 
-                        (main_data_hour["dteday"] <= str(end_date))]
+main_days = main_data_day[(main_data_day["dteday"] >= start_date) & 
+                          (main_data_day["dteday"] <= end_date)]
+
+main_hour = main_data_hour[(main_data_hour["dteday"] >= start_date) & 
+                           (main_data_hour["dteday"] <= end_date)]
 
 daily_recap_df = create_daily_recap(main_hour)
 day_count_2011 = count_by_day(main_days)
@@ -87,7 +90,7 @@ cas = total_casual(main_days)
 sum_order_items = sum_order(main_hour)
 season = macem_season(main_hour)
 
-#Melengkapi Dashboard dengan Berbagai Visualisasi Data
+# Melengkapi Dashboard dengan Berbagai Visualisasi Data
 st.title('Bike Sharing :bar_chart:')
 
 st.subheader('Daily Sharing')
@@ -95,7 +98,7 @@ col1, col2, col3 = st.columns(3)
  
 with col1:
     daily_recap = daily_recap_df['count_cr'].sum()
-    st.metric('Total User', value= daily_recap)
+    st.metric('Total User', value=daily_recap)
 
 with col2:
     total_sum = reg.register_sum.sum()
@@ -106,26 +109,23 @@ with col3:
     st.metric("Total Casual", value=total_sum)
     
 st.subheader("Visualisasi Bar Chart Antar-Musim")
-grouped_day = pd.DataFrame({
-    "count_cr": [0.471348, 0.841613, 0.918589, 1.061129],
-}, index=["Musim Dingin", "Musim Panas", "Musim Semi", "Musim Gugur"])
-
-# Sorting by values
-grouped_day = grouped_day.sort_values(by="count_cr", ascending=False)
+season = macem_season(main_days)
+season['season'] = season['season'].replace({1: "Musim Dingin", 2: "Musim Semi", 3: "Musim Panas", 4: "Musim Gugur"})
+season.sort_values(by="count_cr", ascending=False, inplace=True)
 
 # Define color palette
-colors = sns.color_palette(["#FF7043", "#FFEB3B", "#80D6FF", "#66BB6A"], n_colors=len(grouped_day))
+colors = sns.color_palette(["#FF7043", "#FFEB3B", "#80D6FF", "#66BB6A"], n_colors=len(season))
 
 # Create figure
 fig, ax = plt.subplots(figsize=(15, 6))  
 
 # Plot bar chart
 sns.barplot(
-    y=grouped_day.index,   
-    x=grouped_day["count_cr"],  
+    y=season['season'],   
+    x=season["count_cr"],  
     palette=colors,  
     ax=ax, 
-    order=grouped_day.index  
+    order=season['season']  
 )
 
 # Set titles and labels
@@ -141,11 +141,11 @@ ax.tick_params(axis='y', labelsize=20)
 st.pyplot(fig)
 
 st.subheader('Data Count_cr per Musim')
-st.write(grouped_day)
+st.write(season)
 
 st.subheader("Penggunaan Sepeda Berdasarkan Waktu Terbanyak dan Tersedikit")
 # Menghitung jumlah penyewaan sepeda per jam
-hour_count = sum_order_items.groupby('hours')['count_cr'].sum().reset_index()
+hour_count = main_hour.groupby('hours')['count_cr'].sum().reset_index()
 
 # Mengurutkan berdasarkan penyewa terbanyak dan sedikit
 top_rentals = hour_count.sort_values(by="count_cr", ascending=False).head(5)
@@ -200,8 +200,8 @@ st.write(hour_count)
 
 st.subheader("Perbandingan Jumlah Pengguna Casual vs Pengguna Teregistrasi")
 # Data untuk bar chart
-total_casual = 620017
-total_registered = 2672662
+total_casual = cas["casual_sum"].sum()
+total_registered = reg["register_sum"].sum()
 
 # Data untuk bar chart
 data = [total_casual, total_registered]
@@ -233,10 +233,12 @@ st.write(total_pengguna_df)
 
 st.subheader("Pola Penyewaan Sepeda Antara Hari Kerja vs Akhir Pekan")
 
-weekday_data = pd.DataFrame({
-    'casual': [140521, 70784, 57843, 57319, 61460, 78238, 153852], 
-    'registered': [303506, 384719, 411266, 415729, 423935, 409552, 323955]  
-}, index=['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'])
+weekday_data = main_days.groupby(main_days["dteday"].dt.day_name()).agg({
+    'casual': 'sum',
+    'registered': 'sum'
+}).reindex([
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+])
 
 # Membuat plot dengan dua sumbu y
 fig, ax1 = plt.subplots(figsize=(12, 6))
@@ -279,25 +281,16 @@ st.write(weekday_data)
 
 st.subheader("Total Peminjaman Setiap Bulannya")
 
-monthly_revenue = pd.Series({
-    'Januari': 134933,
-    'Febuari': 151352,
-    'Maret': 228920,
-    'April': 269094,
-    'Mei': 331686,
-    'Juni': 346342,
-    'Juli': 344948,
-    'Agustus': 351194,
-    'September': 345991,
-    'Oktober': 322352,
-    'November': 254831,
-    'Desember': 211036
-})
+monthly_revenue = main_days.groupby(main_days["dteday"].dt.month).agg({
+    'count_cr': 'sum'
+}).reindex(range(1, 13))
+
+monthly_revenue.index = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
 
 colors = ['red' if month == 'Agustus' else 'tab:blue' for month in monthly_revenue.index]
 
 plt.figure(figsize=(12, 6))  
-bars = plt.bar(monthly_revenue.index, monthly_revenue.values, color=colors)
+bars = plt.bar(monthly_revenue.index, monthly_revenue.values.flatten(), color=colors)
 
 # Menambahkan legend untuk warna
 red_patch = plt.Line2D([0], [0], color='red', lw=4, label='Bulan Sewa Terbanyak (Agustus)')
